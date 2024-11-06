@@ -1,3 +1,4 @@
+tests/testthat/*.rds
 R/archive.R
 vignettes/examples/*
 vignettes/*
