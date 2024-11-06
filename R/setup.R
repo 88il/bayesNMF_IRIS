@@ -47,6 +47,10 @@ set_truncnorm_hyperprior_parameters <- function(
         s_e = m_e, S_e = matrix(s_e, nrow = dims$N, ncol = dims$G),
         a_e = dims$N + 1, A_e = matrix(a_e, nrow = dims$N, ncol = dims$G),
         b_e = sqrt(dims$N), B_e = matrix(b_e, nrow = dims$N, ncol = dims$G),
+        Cor_p = NULL,
+        Cor_p_inv = NULL,
+        Covar_p = NULL,
+        Covar_p_inv = NULL,
         alpha = 3, Alpha = rep(alpha, dims$K),
         beta = 3, Beta = rep(beta, dims$K),
         a = 0.8, b = 0.8, weight_r = 0.99
@@ -102,9 +106,34 @@ set_truncnorm_hyperprior_parameters <- function(
         Theta$Beta = rep(Theta$beta, dims$K)
     }
 
+    # NOTE TO IRIS: the covar P you put in is based on the signatures
+    # matrix where columns sum to 1. We need to rescale this to the actual
+    # scale of the prior on P. To do so, we need the input to actually be
+    # a correlation matrix (scale agnostic)
+    if (!is.null(Theta$Cor_p) & is.null(Theta$Covar_p)) {
+        print("Cor_p provided in prior parameters")
+        print(Theta$Cor_p)
+        print("Rescaling to Covar_p")
+
+        if ("Alpha" %in% names(Theta)) {Alpha = Theta$Alpha}
+        if ("Beta" %in% names(Beta)) {Alpha = Theta$Beta}
+
+        # variance of each k based on inv gamma prior
+        var = Beta**2 / ((Alpha - 1)**2 * (Alpha - 2)) # length K
+        sd = sqrt(var)
+        Covar_p = diag(sd) %*% Theta$Cor_p %*% diag(sd)
+        print("Covar_p")
+        print(Covar_p)
+
+        Covar_p_inv = solve(Covar_p)
+        print("Covar_p_inv")
+        print(Covar_p_inv)
+    }
+
     fill_list(Theta, list(
         M_p = M_p, M_e = M_e, S_p = S_p, S_e = S_e,
         A_p = A_p, A_e = A_e, B_p = B_p, B_e = B_e,
+        Covar_p = Covar_p, Covar_p_inv = Covar_p_inv,
         Alpha = Alpha, Beta = Beta, a = a, b = b,
         weight_r = weight_r
     ))
@@ -336,18 +365,51 @@ sample_gamma_prior_parameters <- function(Theta, dims, recovery, recovery_priors
 #' @noRd
 sample_prior_P <- function(Theta, dims, prior) {
     P <- matrix(nrow = dims$K, ncol = dims$N)
-    for (k in 1:dims$K) {
+    # MVN for P
+    if (prior == 'truncnormal' & !is.null(Theta$Covar_p)) {
+        print("Sampling Prior P with MVN")
+        print("Theta$Mu_p")
+        print(Theta$Mu_p)
+        print("Theta$Covar_p")
+        print(Theta$Covar_p)
+        saveRDS(Theta, file = "test.rds")
         for (n in 1:dims$N) {
-            if (prior == 'truncnormal') {
-                P[k,n] <- truncnorm::rtruncnorm(
-                    1, a = 0, b = Inf,
-                    mean = Theta$Mu_p[k,n],
-                    sd = sqrt(Theta$Sigmasq_p[k,n])
-                )
-            } else if (prior == 'exponential') {
-                P[k,n] <- stats::rexp(1, Theta$Lambda_p[k,n])
-            } else if (prior == 'gamma') {
-                P[k,n] <- stats::rgamma(1, Theta$Alpha_p[k,n], Theta$Beta_p[k,n])
+            print(paste("n =", n))
+            mean_vector <- Theta$Mu_p[, n] # K x 1
+
+            lower <- rep(0, length(mean_vector))
+            upper <- rep(Inf, length(mean_vector))
+
+            # Perturb diagonal otherwise "sigma is not positive definite"
+            # NOTE TO IRIS: keeping these commented for now -- try to see if it works without
+            # newsigma <- Theta$Covar_p + diag(1e-6, nrow(Theta$Covar_p))
+            # newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
+
+            sample <- tmvtnorm::rtmvnorm(
+                1, mean = mean_vector, sigma = Theta$Covar_p,
+                lower = lower, upper = upper,
+                algorithm = 'gibbs'
+            )
+            # sample every column of Theta$P from MVN
+            P[, n] <- sample
+        }
+        print("Done Sampling Prior P with MVN")
+    }
+    # non MVN case for P
+    else {
+        for (k in 1:dims$K) {
+            for (n in 1:dims$N) {
+                if (prior == 'truncnormal') {
+                    P[k,n] <- truncnorm::rtruncnorm(
+                        1, a = 0, b = Inf,
+                        mean = Theta$Mu_p[k,n],
+                        sd = sqrt(Theta$Sigmasq_p[k,n])
+                    )
+                } else if (prior == 'exponential') {
+                    P[k,n] <- stats::rexp(1, Theta$Lambda_p[k,n])
+                } else if (prior == 'gamma') {
+                    P[k,n] <- stats::rgamma(1, Theta$Alpha_p[k,n], Theta$Beta_p[k,n])
+                }
             }
         }
     }
@@ -453,6 +515,7 @@ initialize_Theta <- function(
     } else { #gamma
         scale_to = mean(Theta$Alpha_p) / mean(Theta$Beta_p)
     }
+
     if (!is.null(fixed$P)) {
         colnames(fixed$P) <- NULL
         if (ncol(fixed$P) < dims$N) {

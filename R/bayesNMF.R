@@ -517,6 +517,8 @@ inner_bayesNMF <- function(
     stop = NULL
     START_ITER <- Sys.time()
     while (iter <= convergence_control$maxiters & !done) {
+        print(iter)
+
         # update non-fixed columns of P
         if (length(update_P_columns) > 1) {
             update_P_columns = sample(update_P_columns)
