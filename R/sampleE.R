@@ -43,13 +43,13 @@ get_mu_sigmasq_En_normal <- function(n, M, Theta, prior, gamma = 1) {
     mu_num_term_1 <- gamma * Theta$A[1,n] * sweep(
         (M - Mhat_no_n), # dim KxG
         1, # multiply each column by P[,n]
-        Theta$P[, n], # length K
+        Theta$P[, n] / Theta$sigmasq, # length K
         "*"
     ) %>% # dim KxG
         colSums() # length G
 
-    mu_num_term_1 <- mu_num_term_1 / Theta$sigmasq
-    denom <- sum(gamma * Theta$A[1,n] * Theta$P[, n] ** 2) / Theta$sigmasq
+    mu_num_term_1 <- mu_num_term_1
+    denom <- sum(gamma * Theta$A[1,n] * Theta$P[, n] ** 2 / Theta$sigmasq)
 
     if (prior == 'exponential') {
         mu_num_term_2 <- Theta$Lambda_e[n, ] # length G

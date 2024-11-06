@@ -24,7 +24,7 @@ test_that("nmf_poisson_exponential works with 2 signatures", {
         M, rank = 2,
         likelihood = 'poisson',
         prior = 'exponential',
-        file = "log_files/modelPE_dataP_N",
+        file = "log_files/modelPE_dataP_N2",
         overwrite = TRUE,
         true_P = true_P,
         convergence_control = small_test_convergence_control

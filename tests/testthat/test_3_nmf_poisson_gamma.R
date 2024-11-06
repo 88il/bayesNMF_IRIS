@@ -24,7 +24,7 @@ test_that("nmf_poisson_gamma works with 2 signatures", {
         M, rank = 2,
         likelihood = 'poisson',
         prior = 'gamma',
-        file = "log_files/modelPG_dataP_N1",
+        file = "log_files/modelPG_dataP_N2",
         overwrite = TRUE,
         true_P = true_P,
         convergence_control = small_test_convergence_control

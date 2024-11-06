@@ -47,8 +47,8 @@ set_truncnorm_hyperprior_parameters <- function(
         s_e = m_e, S_e = matrix(s_e, nrow = dims$N, ncol = dims$G),
         a_e = dims$N + 1, A_e = matrix(a_e, nrow = dims$N, ncol = dims$G),
         b_e = sqrt(dims$N), B_e = matrix(b_e, nrow = dims$N, ncol = dims$G),
-        alpha = 3, Alpha = rep(alpha, dims$G),
-        beta = 3, Beta = rep(beta, dims$G),
+        alpha = 3, Alpha = rep(alpha, dims$K),
+        beta = 3, Beta = rep(beta, dims$K),
         a = 0.8, b = 0.8, weight_r = 0.99
 ) {
     if ("m_p" %in% names(Theta) & !("M_p" %in% names(Theta))) {
@@ -96,10 +96,10 @@ set_truncnorm_hyperprior_parameters <- function(
     }
 
     if ("alpha" %in% names(Theta) & !("Alpha" %in% names(Theta))) {
-        Theta$Alpha = rep(Theta$alpha, dims$G)
+        Theta$Alpha = rep(Theta$alpha, dims$K)
     }
     if ("beta" %in% names(Theta) & !("Beta" %in% names(Theta))) {
-        Theta$Beta = rep(Theta$beta, dims$G)
+        Theta$Beta = rep(Theta$beta, dims$K)
     }
 
     fill_list(Theta, list(
@@ -178,8 +178,8 @@ set_exponential_hyperprior_parameters <- function(
         b_p = 10 * sqrt(mean(M)),  B_p = matrix(b_p, nrow = dims$K, ncol = dims$N),
         a_e = 10 * sqrt(dims$N), A_e = matrix(a_e, nrow = dims$N, ncol = dims$G),
         b_e = 10 * sqrt(mean(M)), B_e = matrix(b_e, nrow = dims$N, ncol = dims$G),
-        alpha = 3, Alpha = rep(alpha, dims$G),
-        beta = 3, Beta = rep(beta, dims$G),
+        alpha = 3, Alpha = rep(alpha, dims$K),
+        beta = 3, Beta = rep(beta, dims$K),
         a = 0.8, b = 0.8, weight_r = 0.99
 ) {
     for (matrix in c("A_p", "B_p")) {
@@ -200,10 +200,10 @@ set_exponential_hyperprior_parameters <- function(
     }
 
     if ("alpha" %in% names(Theta) & !("Alpha" %in% names(Theta))) {
-        Theta$Alpha = rep(Theta$alpha, dims$G)
+        Theta$Alpha = rep(Theta$alpha, dims$K)
     }
     if ("beta" %in% names(Theta) & !("Beta" %in% names(Theta))) {
-        Theta$Beta = rep(Theta$beta, dims$G)
+        Theta$Beta = rep(Theta$beta, dims$K)
     }
 
     fill_list(Theta, list(
@@ -390,7 +390,7 @@ sample_prior_E <- function(Theta, dims, prior) {
 #' @return matrix, prior sample of sigmasq
 #' @noRd
 sample_prior_sigmasq <- function(Theta, dims) {
-    invgamma::rinvgamma(dims$G, shape = Theta$Alpha, rate = Theta$Beta)
+    invgamma::rinvgamma(dims$K, shape = Theta$Alpha, rate = Theta$Beta)
 }
 
 #' initialize Theta
@@ -447,7 +447,7 @@ initialize_Theta <- function(
 
     # signatures P
     if (prior == 'truncnormal') {
-        scale_to = mean(Theta$Mu)
+        scale_to = mean(Theta$Mu_p)
     } else if (prior == 'exponential') {
         scale_to = 1 / mean(Theta$Lambda_p)
     } else { #gamma

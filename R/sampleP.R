@@ -40,15 +40,15 @@ get_mu_sigmasq_Pn <- function(n, M, Theta, prior, gamma = 1) {
     Mhat_no_n <- get_Mhat_no_n(Theta, n)
 
     # broadcast En / sigmasq to residuals M - Mhat
-    mu_num_term_1 <- gamma * Theta$A[1,n] * sweep(
+    mu_num_term_1 <- (gamma * Theta$A[1,n] * sweep(
         (M - Mhat_no_n), # dim KxG
         2, # multiply each row by E[n,]
-        Theta$E[n, ] / Theta$sigmasq, # length G
+        Theta$E[n, ] , # length G
         "*"
     ) %>% # dim KxG
-        rowSums() # length K
+        rowSums()) / Theta$sigmasq # length K
 
-    denom <- gamma * sum(Theta$A[1,n] * Theta$E[n, ] ** 2 / Theta$sigmasq)
+    denom <- gamma * sum(Theta$A[1,n] * Theta$E[n, ] ** 2) / Theta$sigmasq
 
     if (prior == 'exponential') {
         mu_num_term_2 <- Theta$Lambda_p[, n] # length K
