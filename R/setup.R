@@ -121,7 +121,7 @@ set_truncnorm_hyperprior_parameters <- function(
         # variance of each k based on inv gamma prior
 
         # scale to variance of P
-        var = sqrt(mean(M))/sqrt(dims$N)
+        var = rep(sqrt(mean(M))/sqrt(dims$N), dims$K)
         # Beta**2 / ((Alpha - 1)**2 * (Alpha - 2)) # length K
 
         sd = sqrt(var)
