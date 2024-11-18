@@ -119,7 +119,11 @@ set_truncnorm_hyperprior_parameters <- function(
         if ("Beta" %in% names(Theta)) {Beta = Theta$Beta}
 
         # variance of each k based on inv gamma prior
-        var = Beta**2 / ((Alpha - 1)**2 * (Alpha - 2)) # length K
+
+        # scale to variance of P
+        var = sqrt(mean(M))/sqrt(dims$N)
+        # Beta**2 / ((Alpha - 1)**2 * (Alpha - 2)) # length K
+
         sd = sqrt(var)
         Covar_p = diag(sd) %*% Theta$Cor_p %*% diag(sd)
         print("Covar_p")
@@ -533,6 +537,9 @@ initialize_Theta <- function(
             Theta$P <- scaled_fixed_P
         }
     } else if (!is.null(inits$P)) {
+        inits$P = inits$P * scale_to / mean(inits$P)
+        print("printing inits$P: ")
+        print(inits$P)
         Theta$P <- inits$P # is_fixed$P all False from initialization
     } else {
         Theta$P <- sample_prior_P(Theta, dims, prior) # is_fixed$P all False from initialization

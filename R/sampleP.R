@@ -39,6 +39,9 @@ log_target_Pn <- function(M, Pn, n, Theta, prior) {
 get_mu_sigmasq_Pn <- function(n, M, Theta, prior, dims, gamma = 1) {
     Mhat_no_n <- get_Mhat_no_n(Theta, n)
 
+    print("printing Mhat_no_n: ")
+    print(Mhat_no_n)
+
     # MVN case for P
     # case when P has covariance matrix
     # NOTES: incorporate gamma and A matrix (from PAE) ?
@@ -224,22 +227,23 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
         # saveRDS(Theta$P[, n], 'startval.rds')
 
         # NOTE TO IRIS: maybe also set the sample to 0 at these indices??
-        print(paste("sum(mean_vector < 0)", sum(mean_vector < 0)))
+        # print(paste("sum(mean_vector < 0)", sum(mean_vector < 0)))
         mean_vector[mean_vector < 0] <- 0
 
         # H for solve(newsigma)
 
         sample <- tmvtnorm::rtmvnorm(
-            1, mean = mean_vector, # H = newsigma_inv,
-            sigma = newsigma,
+            1, mean = mean_vector, H = newsigma_inv,
+            # sigma = newsigma,
             lower = lower, upper = upper,
             algorithm = "gibbs",
             burn.in.samples = 1, start.value = Theta$P[, n]
         )
+        # get rid of burnin and start
 
         # sample[mean_vector < 0] <- 0
 
-        print(sample)
+        # print(sample)
 
         # sample <- tmvtnorm::rtmvnorm(
         #     1, mean = mean_vector, sigma = newsigma,

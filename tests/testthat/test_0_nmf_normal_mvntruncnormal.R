@@ -3,7 +3,7 @@ source("test_funcs.R")
 library(tidyverse)
 
 small_test_convergence_control <- new_convergence_control(maxiters = 1000, MAP_over = 500)
-large_test_convergence_control <- new_convergence_control(maxiters = 2000, MAP_over = 500)
+large_test_convergence_control <- new_convergence_control(maxiters = 10000, MAP_over = 1000)
 
 get_cosmic <- function() {
     P <- read.csv(
@@ -35,7 +35,7 @@ res <- bayesNMF(
     true_P = true_P,
     inits = list(P= true_P[,1:2]), # starting at true value (cheating)
     prior_parameters = list(Cor_p = diag(diag(cor_matrix_1)), Cor_p_inv = solve(diag(diag(cor_matrix_1)))),
-    convergence_control = small_test_convergence_control
+    convergence_control = large_test_convergence_control
 )
 get_heatmap(res$MAP$P, true_P)
 
