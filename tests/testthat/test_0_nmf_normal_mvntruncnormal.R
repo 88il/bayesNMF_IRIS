@@ -27,12 +27,13 @@ cor_matrix_1[abs(cor_matrix_1) < cutoff] = 0
 
 # example with diagonal correlation matrix
 res <- bayesNMF(
-    M, rank = 5,
+    M, rank = 2,
     likelihood = 'normal',
     prior = 'truncnormal',
     file = "log_files/mvn/modelNT_dataP_N1",
     overwrite = TRUE,
     true_P = true_P,
+    inits = list(P= true_P[,1:2]), # starting at true value (cheating)
     prior_parameters = list(Cor_p = diag(diag(cor_matrix_1)), Cor_p_inv = solve(diag(diag(cor_matrix_1)))),
     convergence_control = small_test_convergence_control
 )

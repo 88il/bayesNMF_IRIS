@@ -230,12 +230,15 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
         # H for solve(newsigma)
 
         sample <- tmvtnorm::rtmvnorm(
-            1, mean = mean_vector, #H = newsigma_inv,
+            1, mean = mean_vector, # H = newsigma_inv,
             sigma = newsigma,
             lower = lower, upper = upper,
             algorithm = "gibbs",
             burn.in.samples = 1, start.value = Theta$P[, n]
         )
+
+        # sample[mean_vector < 0] <- 0
+
         print(sample)
 
         # sample <- tmvtnorm::rtmvnorm(

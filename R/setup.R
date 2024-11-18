@@ -116,7 +116,7 @@ set_truncnorm_hyperprior_parameters <- function(
         print("Rescaling to Covar_p")
 
         if ("Alpha" %in% names(Theta)) {Alpha = Theta$Alpha}
-        if ("Beta" %in% names(Beta)) {Alpha = Theta$Beta}
+        if ("Beta" %in% names(Theta)) {Beta = Theta$Beta}
 
         # variance of each k based on inv gamma prior
         var = Beta**2 / ((Alpha - 1)**2 * (Alpha - 2)) # length K
