@@ -89,7 +89,8 @@ get_mu_sigmasq_Pn <- function(n, M, Theta, prior, dims, gamma = 1) {
         A <- Theta$Covar_p_inv + sum(Theta$E[n, ] ** 2) * sigma_M_inv # KxK
         # print("A")
         # print(A)
-        B <- Theta$Covar_p_inv %*% Theta$Mu_p[, n] - sigma_M_inv %*% A_star # Kx1
+
+        B <- Theta$Covar_p_inv %*% Theta$Mu_p[, n] + sigma_M_inv %*% A_star # Kx1
         # print("B")
         # print(B)
 
@@ -236,8 +237,7 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
             1, mean = mean_vector, H = newsigma_inv,
             # sigma = newsigma,
             lower = lower, upper = upper,
-            algorithm = "gibbs",
-            burn.in.samples = 1, start.value = Theta$P[, n]
+            algorithm = "gibbs", burn.in.samples = 1 #, start.value = Theta$P[, n]
         )
         # get rid of burnin and start
 
