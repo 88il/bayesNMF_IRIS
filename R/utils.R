@@ -25,6 +25,11 @@ get_Mhat <- function(Theta) {
     } else {
         Mhat <- Theta$P %*% diag(Theta$A[1,]) %*% Theta$E
     }
+
+    # print("HELLO P")
+    # print(Theta$P)
+    # print("HELLO E")
+    # print(Theta$E)
     return(Mhat)
 }
 

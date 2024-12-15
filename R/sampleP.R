@@ -37,16 +37,29 @@ log_target_Pn <- function(M, Pn, n, Theta, prior) {
 #' @return list of two items, mu and sigmasq
 #' @noRd
 get_mu_sigmasq_Pn <- function(n, M, Theta, prior, dims, gamma = 1) {
+    print("inside get_mu_sigmasq_Pn")
+    # print(Theta$P)
+
     Mhat_no_n <- get_Mhat_no_n(Theta, n)
 
     print("printing Mhat_no_n: ")
     print(Mhat_no_n)
+
+    print('printing P')
+    print(Theta$P)
+
+    print('printing E')
+    print(Theta$E)
 
     # MVN case for P
     # case when P has covariance matrix
     # NOTES: incorporate gamma and A matrix (from PAE) ?
     if (prior == 'truncnormal' & !is.null(Theta$Covar_p)) {
         cov_p = Theta$Covar_p
+
+        print('printing cov_p')
+        print(cov_p)
+
         sigma_M <- diag(Theta$sigmasq) # KxK
 
         # if (kappa(sigma_M) > 1e12) {
@@ -154,24 +167,34 @@ get_mu_sigmasq_Pn <- function(n, M, Theta, prior, dims, gamma = 1) {
 #' @return vector length K
 #' @noRd
 sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
+    print("in sample_Pn_normal")
+    print("printing Theta$Covar_p")
+    print(Theta$Covar_p)
 
     # MVN case for P
     if (prior == 'truncnormal' & !is.null(Theta$Covar_p)) {
-        # print("Sampling P MVN")
+        print("Sampling P MVN")
+
         mu_sigmasq_P <- get_mu_sigmasq_Pn(n, M, Theta, prior, dims, gamma = gamma)
 
         mean_vector <- mu_sigmasq_P$mu[,1]
         lower <- rep(0, length(mean_vector))
         upper <- rep(Inf, length(mean_vector))
-        # print('printing mu_sigmasq_P$covar:')
-        # print(mu_sigmasq_P$covar)
+        print('printing mu_sigmasq_P$covar:')
+        print(mu_sigmasq_P$covar)
         # Perturb diagonal otherwise "sigma is not positive definite"
         epsilon <- 0 # 1e-5
         newsigma <- mu_sigmasq_P$covar + diag(epsilon, nrow(Theta$Covar_p))
 
+        print("printing newsigma")
+        print(newsigma)
+
         newsigma_inv <- mu_sigmasq_P$covar_inv
-        # print('checking if covar_p_inv is PD')
-        # print(matrixcalc::is.positive.definite(newsigma_inv))
+
+        newsigma_inv <- as.matrix(Matrix::forceSymmetric(newsigma_inv))
+
+        print('checking if covar_p_inv is PD')
+        print(matrixcalc::is.positive.definite(newsigma_inv))
 
         eigenvalues <- eigen(newsigma_inv)$values
         # print('printing evals: ')
@@ -184,7 +207,7 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
         # print(newsigma)
 
         # NOTE TO IRIS: commenting this out to see if it works without
-        # newsigma <- as.matrix(Matrix::forceSymmetric(newsigma))
+        newsigma <- as.matrix(Matrix::forceSymmetric(newsigma))
 
         # print(newsigma)
         # print(newsigma - t(newsigma))
@@ -192,7 +215,7 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
         # print(matrixcalc::is.positive.definite(newsigma))
         # print(det(newsigma))
 
-        # newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
+        newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
         # print(newsigma)
         # alpha <- mvtnorm::pmvnorm(lower = lower, upper = upper,
         #                  mean = mean_vector, sigma = newsigma)
@@ -213,7 +236,7 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
         saveRDS(mean_vector, 'mean_vector.rds')
 
         #
-        # print("newsigma:")
+        print("newsigma:")
         # print(newsigma)
         # saveRDS(newsigma, 'newsigma.rds') # newsigma <- readRDS('newsigma.rds')
         #
@@ -228,14 +251,26 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
         # saveRDS(Theta$P[, n], 'startval.rds')
 
         # NOTE TO IRIS: maybe also set the sample to 0 at these indices??
-        # print(paste("sum(mean_vector < 0)", sum(mean_vector < 0)))
+        print(paste("sum(mean_vector < 0)", sum(mean_vector < 0)))
         mean_vector[mean_vector < 0] <- 0
+
+        print("mean vector: ")
+        print(mean_vector)
+
+        print("newsigma_inv: ")
+        print(newsigma_inv)
 
         # H for solve(newsigma)
 
+        # using H and block_cor gives 5 iterations.
+        # using newsigma gives 13 iterations (sampling w H gives NaN but doesnt throw pos definite error)
+
+        # TRY 6x6 covar instead of 96x96
+        # only look at center mutation. each 6 is sum over all X[]Y elements
+        # use cosmic derived signatures
         sample <- tmvtnorm::rtmvnorm(
-            1, mean = mean_vector, H = newsigma_inv,
-            # sigma = newsigma,
+            1, mean = mean_vector, # H = newsigma_inv,
+            sigma = newsigma,
             lower = lower, upper = upper,
             algorithm = "gibbs", burn.in.samples = 1 #, start.value = Theta$P[, n]
         )
@@ -349,6 +384,10 @@ sample_Pn <- function(n, M, Theta, dims, likelihood, prior, fast, gamma = 1) {
         sampled <- sample_Pn_poisson(n, M, Theta, dims, prior, gamma)
         acceptance <- 1
     }
+
+    print("in samplePn")
+    print(sampled)
+
     return(list(
         sampled = sampled,
         acceptance = acceptance

@@ -384,18 +384,27 @@ sample_prior_P <- function(Theta, dims, prior) {
             lower <- rep(0, length(mean_vector))
             upper <- rep(Inf, length(mean_vector))
 
-            # Perturb diagonal otherwise "sigma is not positive definite"
+            # Perturb diagonal otherwise "sigma is not positive definite" and samples NaNs
             # NOTE TO IRIS: keeping these commented for now -- try to see if it works without
-            # newsigma <- Theta$Covar_p + diag(1e-6, nrow(Theta$Covar_p))
-            # newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
+            newsigma <- Theta$Covar_p + diag(1e-6, nrow(Theta$Covar_p))
+            newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
+
+            if (!all(eigen(newsigma)$values >= 0)) {
+                stop("Covariance matrix is not positive semi-definite.")
+            }
 
             sample <- tmvtnorm::rtmvnorm(
-                1, mean = mean_vector, sigma = Theta$Covar_p,
+                1, mean = mean_vector, # sigma = newsigma,
+                H = lqmm::make.positive.definite(Theta$Covar_p_inv, tol=1e-3),
                 lower = lower, upper = upper,
                 algorithm = 'gibbs'
             )
             # sample every column of Theta$P from MVN
             P[, n] <- sample
+
+            print("printing n and sample of Theta$P column")
+            print(n)
+            print(sample)
         }
         print("Done Sampling Prior P with MVN")
     }
@@ -542,6 +551,8 @@ initialize_Theta <- function(
         print(inits$P)
         Theta$P <- inits$P # is_fixed$P all False from initialization
     } else {
+        # LOOK HERE for printing n and sample of Theta$P column
+
         Theta$P <- sample_prior_P(Theta, dims, prior) # is_fixed$P all False from initialization
     }
 

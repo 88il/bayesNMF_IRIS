@@ -509,6 +509,9 @@ inner_bayesNMF <- function(
         update_A_cols = sample(update_A_cols)
     }
 
+    print("before Gibbs starts printing Theta$P")
+    print(Theta$P)
+
     # Gibbs sampler
     iter = 1
     logiter = 1
@@ -519,10 +522,16 @@ inner_bayesNMF <- function(
     while (iter <= convergence_control$maxiters & !done) {
         print(iter)
 
+        ## LOOOOK HERE !!!!
+
         # update non-fixed columns of P
         if (length(update_P_columns) > 1) {
             update_P_columns = sample(update_P_columns)
         }
+
+        print('printing update_P_columns')
+        print(update_P_columns)
+
         for (n in update_P_columns) {
             sample_Pn_out <- sample_Pn(
                 n, M, Theta, dims,
@@ -552,6 +561,9 @@ inner_bayesNMF <- function(
                 )
             }
         }
+
+        print("printing Theta$sigmasq")
+        print(Theta$sigmasq)
 
         # update A and n
         Theta$n <- sample_n(Theta, dims, clip, gamma = gamma_sched[iter])
