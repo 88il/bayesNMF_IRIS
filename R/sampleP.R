@@ -82,9 +82,18 @@ get_mu_sigmasq_Pn <- function(n, M, Theta, prior, dims, gamma = 1) {
         sigma_M_inv <- solve(sigma_M) # KxK
         # covar_P_inv <- solve(cov_p_new) # KxK
         # sigma_M_inv <- solve(sigma_M) # KxK
+        if (any(diag(sigma_M_inv) <= 0)) {
+            stop("sigma_M_inv contains non-positive values.")
+        }
+
 
         A_star <- sapply(1:dims$K, function(k) sum(Theta$E[n, ] * (M[k, ] - Mhat_no_n[k, ]))) # Kx1 vector
-        # print("A_star")
+
+        # print('printing M - Mhat_no_n')
+        # print(sapply(1:dims$K, function(k) (M[k, ] - Mhat_no_n[k, ])))
+
+        # print("printing A_star")
+        # print(length(A_star))
         # print(A_star)
 
         # print('printing out math')
@@ -100,15 +109,19 @@ get_mu_sigmasq_Pn <- function(n, M, Theta, prior, dims, gamma = 1) {
         # print(covar_P_inv)
 
         A <- Theta$Covar_p_inv + sum(Theta$E[n, ] ** 2) * sigma_M_inv # KxK
-        # print("A")
+        # print("printing A")
         # print(A)
+        if (any(diag(Theta$Covar_p_inv) <= 0)) {
+            stop("Theta$Covar_p_inv contains non-positive values.")
+        }
+
 
         B <- Theta$Covar_p_inv %*% Theta$Mu_p[, n] + sigma_M_inv %*% A_star # Kx1
-        # print("B")
+        # print("printing B")
         # print(B)
 
         A_inv <- solve(A)
-        # print("A_inv")
+        # print("printing A_inv")
         # print(A_inv)
 
         mu_P <- A_inv %*% B
@@ -173,16 +186,16 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
 
     # MVN case for P
     if (prior == 'truncnormal' & !is.null(Theta$Covar_p)) {
+
+        # Obtain posterior mu, sigma for P
         print("Sampling P MVN")
-
         mu_sigmasq_P <- get_mu_sigmasq_Pn(n, M, Theta, prior, dims, gamma = gamma)
-
         mean_vector <- mu_sigmasq_P$mu[,1]
-        lower <- rep(0, length(mean_vector))
-        upper <- rep(Inf, length(mean_vector))
+
         print('printing mu_sigmasq_P$covar:')
         print(mu_sigmasq_P$covar)
-        # Perturb diagonal otherwise "sigma is not positive definite"
+
+        # Perturb diagonal otherwise sigma is not positive definite
         epsilon <- 0 # 1e-5
         newsigma <- mu_sigmasq_P$covar + diag(epsilon, nrow(Theta$Covar_p))
 
@@ -190,7 +203,6 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
         print(newsigma)
 
         newsigma_inv <- mu_sigmasq_P$covar_inv
-
         newsigma_inv <- as.matrix(Matrix::forceSymmetric(newsigma_inv))
 
         print('checking if covar_p_inv is PD')
@@ -260,19 +272,23 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
         print("newsigma_inv: ")
         print(newsigma_inv)
 
+        # Set lower, upper bounds for MVNtruncnorm sampler
+        lower <- rep(0, length(mean_vector))
+        upper <- rep(Inf, length(mean_vector))
+
+        lower_stricter <- pmax(lower, mean_vector - 10 * sqrt(diag(newsigma)))
+        upper_stricter <- pmin(upper, mean_vector + 10 * sqrt(diag(newsigma)))
+        print('lower_stricter, upper_stricter')
+        print(lower_stricter)
+        print(upper_stricter)
+
         # H for solve(newsigma)
-
-        # using H and block_cor gives 5 iterations.
-        # using newsigma gives 13 iterations (sampling w H gives NaN but doesnt throw pos definite error)
-
-        # TRY 6x6 covar instead of 96x96
-        # only look at center mutation. each 6 is sum over all X[]Y elements
-        # use cosmic derived signatures
         sample <- tmvtnorm::rtmvnorm(
-            1, mean = mean_vector, # H = newsigma_inv,
-            sigma = newsigma,
-            lower = lower, upper = upper,
-            algorithm = "gibbs", burn.in.samples = 1 #, start.value = Theta$P[, n]
+            1, mean = mean_vector, H = newsigma_inv,
+            # sigma = newsigma,
+            lower = lower_stricter, upper = upper_stricter,
+            # lower = lower, upper = upper,
+            algorithm = "gibbs" #, burn.in.samples = 1 #, start.value = Theta$P[, n]
         )
         # get rid of burnin and start
 

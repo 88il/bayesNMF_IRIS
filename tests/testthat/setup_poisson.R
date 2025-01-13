@@ -14,7 +14,7 @@ row_maxes <- sapply(1:nrow(sim), function(i) {
 
 P <- P[,-which(row_maxes > 0)]
 
-sigs = 2:(2+N - 1) # c(2,3,4,5,10)
+sigs = c(2,3,4,5,10) # 2:(2+N - 1) # c(2,3,4,5,10)
 P <- P[,sigs]
 
 K = nrow(P)

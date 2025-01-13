@@ -19,16 +19,16 @@ for (i in (1:6)){
 }
 
 # DELTED BELOW (low cossim)
-# sim <- pairwise_sim(P6, P6)
-# row_maxes <- sapply(1:nrow(sim), function(i) {
-#     sum(sim[i,-i] > 0.7)
-# })
-#
-# P6 <- P6[,-which(row_maxes > 0)]
+sim <- pairwise_sim(P6, P6)
+row_maxes <- sapply(1:nrow(sim), function(i) {
+    sum(sim[i,-i] > 0.7)
+})
+
+P6 <- P6[,-which(row_maxes > 0)]
 
 
 # choosing 5 random signatures
-sigs = c(2,3,4,5,10) # 2:(2+N - 1) # c(2,3,4,5,10)
+sigs = 2:(2+N - 1) # c(2,3,4,5,10)
 P6 <- P6[,sigs]
 
 K = nrow(P6)
@@ -43,4 +43,6 @@ M <- round(M)
 
 true_P <- P6
 true_E <- E
+
+# remove these variables from the environment after source
 rm(list = c('P6','E','N','G','sigs'))

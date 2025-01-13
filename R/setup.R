@@ -125,13 +125,14 @@ set_truncnorm_hyperprior_parameters <- function(
         # Beta**2 / ((Alpha - 1)**2 * (Alpha - 2)) # length K
 
         sd = sqrt(var)
-        Covar_p = diag(sd) %*% Theta$Cor_p %*% diag(sd)
+        # 1/6/25 Added Theta$ in front
+        Theta$Covar_p = diag(sd) %*% Theta$Cor_p %*% diag(sd)
         print("Covar_p")
-        print(Covar_p)
+        print(Theta$Covar_p)
 
-        Covar_p_inv = solve(Covar_p)
+        Theta$Covar_p_inv = solve(Theta$Covar_p)
         print("Covar_p_inv")
-        print(Covar_p_inv)
+        print(Theta$Covar_p_inv)
     }
 
     fill_list(Theta, list(
@@ -386,7 +387,11 @@ sample_prior_P <- function(Theta, dims, prior) {
 
             # Perturb diagonal otherwise "sigma is not positive definite" and samples NaNs
             # NOTE TO IRIS: keeping these commented for now -- try to see if it works without
-            newsigma <- Theta$Covar_p + diag(1e-6, nrow(Theta$Covar_p))
+            # 12/31/24 OLD comment out. use sampleP.R modifications for newsigma
+            # newsigma <- Theta$Covar_p + diag(1e-6, nrow(Theta$Covar_p))
+            # newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
+
+            newsigma <- as.matrix(Matrix::forceSymmetric(Theta$Covar_p))
             newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
 
             if (!all(eigen(newsigma)$values >= 0)) {
@@ -394,8 +399,8 @@ sample_prior_P <- function(Theta, dims, prior) {
             }
 
             sample <- tmvtnorm::rtmvnorm(
-                1, mean = mean_vector, # sigma = newsigma,
-                H = lqmm::make.positive.definite(Theta$Covar_p_inv, tol=1e-3),
+                1, mean = mean_vector, sigma = newsigma,
+                # H = lqmm::make.positive.definite(Theta$Covar_p_inv, tol=1e-3),
                 lower = lower, upper = upper,
                 algorithm = 'gibbs'
             )
@@ -546,8 +551,16 @@ initialize_Theta <- function(
             Theta$P <- scaled_fixed_P
         }
     } else if (!is.null(inits$P)) {
+        print('inits$P before scaling')
+        print(inits$P)
+
+
+        print('scale_to, mean(inits$P)')
+        print(scale_to)
+        print(mean(inits$P))
+
         inits$P = inits$P * scale_to / mean(inits$P)
-        print("printing inits$P: ")
+        print("printing inits$P after scaling: ")
         print(inits$P)
         Theta$P <- inits$P # is_fixed$P all False from initialization
     } else {

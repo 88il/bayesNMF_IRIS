@@ -9,6 +9,10 @@ library(tidyverse)
 small_test_convergence_control <- new_convergence_control(maxiters = 1000, MAP_over = 500)
 large_test_convergence_control <- new_convergence_control(maxiters = 10000, MAP_over = 1000)
 
+# # below is mutation6 large convergence control
+# large_test_convergence_control <- new_convergence_control(maxiters = 10000, MAP_over = 10, MAP_every=1)
+
+
 get_cosmic <- function() {
     P <- read.csv(
         "https://cog.sanger.ac.uk/cosmic-signatures-production/documents/COSMIC_v3.3.1_SBS_GRCh37.txt",
@@ -23,10 +27,6 @@ get_cosmic <- function() {
 cosmic_matrix <- get_cosmic()
 
 cor_matrix = cor(t(cosmic_matrix))
-# try covar matrix then scaling
-
-# try without zeroing (to ensure positive definiteness)
-# try with covar matrix (scale after)
 
 library(Matrix)
 sigma = cov(t(cosmic_matrix))
@@ -49,17 +49,45 @@ shrunk_cor_matrix <- cov2cor(cov.shrink(cor_matrix))
 # cutoff = quantile(abs(cor_matrix_1), 0.1)
 # cor_matrix_1[abs(cor_matrix_1) < cutoff] = 0
 
-
-# example with diagonal correlation matrix
+# (noncheat) JS shrinkage estimate for covar matrix
 res <- bayesNMF(
-    M, rank = 2,
+    M, rank = 3,
     likelihood = 'normal',
     prior = 'truncnormal',
-    file = "log_files/mvn/modelNT_dataP_N1",
+    file = "log_files/mvn/modelNT_dataP_N3_JSshrink_noncheat_jan12",
     overwrite = TRUE,
     true_P = true_P,
-    inits = list(P= true_P[,1:2]), # starting at true value (cheating)
-    prior_parameters = list(Cor_p = diag(diag(cor_matrix_1)), Cor_p_inv = solve(diag(diag(cor_matrix_1)))),
+    # inits = list(P= true_P[,1:3]), # starting at true value (cheating)
+    prior_parameters = list(Cor_p = shrunk_cor_matrix, Cor_p_inv = solve(shrunk_cor_matrix)),
+    convergence_control = large_test_convergence_control
+)
+get_heatmap(res$MAP$P, true_P)
+
+# (cheat) JS shrinkage estimate for covar matrix
+res <- bayesNMF(
+    M, rank = 4,
+    likelihood = 'normal',
+    prior = 'truncnormal',
+    file = "log_files/mvn/modelNT_dataP_N4_JSshrink_cheat",
+    overwrite = TRUE,
+    true_P = true_P,
+    inits = list(P= true_P[,1:4]), # starting at true value (cheating)
+    prior_parameters = list(Cor_p = shrunk_cor_matrix, Cor_p_inv = solve(shrunk_cor_matrix)),
+    convergence_control = large_test_convergence_control
+)
+get_heatmap(res$MAP$P, true_P)
+
+
+# example with identity correlation matrix
+res <- bayesNMF(
+    M, rank = 3,
+    likelihood = 'normal',
+    prior = 'truncnormal',
+    file = "log_files/mvn/modelNT_dataP_N3_identity_cheat_jan12",
+    overwrite = TRUE,
+    true_P = true_P,
+    inits = list(P= true_P[,1:3]), # starting at true value (cheating)
+    prior_parameters = list(Cor_p = diag(diag(cor_matrix)), Cor_p_inv = solve(diag(diag(cor_matrix)))),
     convergence_control = large_test_convergence_control
 )
 get_heatmap(res$MAP$P, true_P)

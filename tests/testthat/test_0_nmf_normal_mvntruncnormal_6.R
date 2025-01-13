@@ -23,7 +23,6 @@ large_test_convergence_control <- new_convergence_control(maxiters = 10000, MAP_
 # can try to use MVN norm to sample, then set negatives to 0. this would be a mixture dist.
 
 
-
 get_cosmic <- function() {
     P <- read.csv(
         "https://cog.sanger.ac.uk/cosmic-signatures-production/documents/COSMIC_v3.3.1_SBS_GRCh37.txt",
@@ -75,17 +74,45 @@ cor_matrix_1 <- cor_matrix
 cutoff = quantile(abs(cor_matrix_1), 0.1)
 cor_matrix_1[abs(cor_matrix_1) < cutoff] = 0
 
+# JS shrinkage estimate for covar matrix
+res <- bayesNMF(
+    M, rank = 4,
+    likelihood = 'normal',
+    prior = 'truncnormal',
+    file = "log_files/mvn/modelNT_dataP_N4_mutation6_JSshrink_noncheat_v2",
+    overwrite = TRUE,
+    true_P = true_P,
+    # inits = list(P= true_P[,1:4]), # starting at true value (cheating)
+    prior_parameters = list(Cor_p = shrunk_cor_matrix_6, Cor_p_inv = solve(shrunk_cor_matrix_6)),
+    convergence_control = large_test_convergence_control
+)
+get_heatmap(res$MAP$P, true_P)
+
 
 # example with diagonal correlation matrix
 res <- bayesNMF(
-    M, rank = 2,
+    M, rank = 4,
     likelihood = 'normal',
     prior = 'truncnormal',
-    file = "log_files/mvn/modelNT_dataP_N1_mutation6",
+    file = "log_files/mvn/modelNT_dataP_N4_mutation6_identity_noncheat",
     overwrite = TRUE,
     true_P = true_P,
-    inits = list(P= true_P[,1:2]), # starting at true value (cheating)
-    prior_parameters = list(Cor_p = cor_matrix_1, Cor_p_inv = solve(cor_matrix_1)),
+    # inits = list(P= true_P[,1:4]), # starting at true value (cheating)
+    prior_parameters = list(Cor_p = diag(diag(cor_matrix_1)), Cor_p_inv = solve(diag(diag(cor_matrix_1)))),
+    convergence_control = large_test_convergence_control
+)
+get_heatmap(res$MAP$P, true_P)
+
+# identity cheat
+res <- bayesNMF(
+    M, rank = 5,
+    likelihood = 'normal',
+    prior = 'truncnormal',
+    file = "log_files/mvn/modelNT_dataP_N5_mutation6_identity_cheat",
+    overwrite = TRUE,
+    true_P = true_P,
+    inits = list(P= true_P), # starting at true value (cheating)
+    prior_parameters = list(Cor_p = diag(diag(cor_matrix_1)), Cor_p_inv = solve(diag(diag(cor_matrix_1)))),
     convergence_control = large_test_convergence_control
 )
 get_heatmap(res$MAP$P, true_P)
