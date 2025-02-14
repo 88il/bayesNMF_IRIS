@@ -6,7 +6,7 @@
 #' @param M_p location parameter for the prior location parameter of `P`
 #' size K x N. Defaults to all same value `m_p`
 #' @param s_p see `S_p`
-#' @param S_p scale prameter for the prior location parameter of `P`
+#' @param S_p scale parameter for the prior location parameter of `P`
 #' size K x N. Defaults to all same value `s_p`
 #' @param a_p see `A_p`
 #' @param A_p shape parameter for the gamma prior on `P`, matrix
@@ -16,7 +16,7 @@
 #' @param M_e location parameter for the prior location parameter of `E`
 #' size N x G. Defaults to all same value `m_e`
 #' @param s_e see `S_e`
-#' @param S_e scale prameter for the prior location parameter of `E`
+#' @param S_e scale parameter for the prior location parameter of `E`
 #' size N x G. Defaults to all same value `s_e`
 #' @param a_e see `A_e`
 #' @param A_e shape parameter for the gamma prior on `E`, matrix
@@ -53,7 +53,16 @@ set_truncnorm_hyperprior_parameters <- function(
         Covar_p_inv = NULL,
         alpha = 3, Alpha = rep(alpha, dims$K),
         beta = 3, Beta = rep(beta, dims$K),
-        a = 0.8, b = 0.8, weight_r = 0.99
+        a = 0.8, b = 0.8, weight_r = 0.99,
+
+        # TODO: hierarchical model
+        sigma2_prior = NULL,
+        rho_same_prior = NULL,
+        rho_diff_prior = NULL,
+
+        sigma2 = NULL,
+        rho_same = NULL,
+        rho_diff = NULL
 ) {
     if ("m_p" %in% names(Theta) & !("M_p" %in% names(Theta))) {
         Theta$M_p = matrix(Theta$m_p, nrow = dims$K, ncol = dims$N)
@@ -110,10 +119,11 @@ set_truncnorm_hyperprior_parameters <- function(
     # matrix where columns sum to 1. We need to rescale this to the actual
     # scale of the prior on P. To do so, we need the input to actually be
     # a correlation matrix (scale agnostic)
+    print("checking if prior for covar_p needs to be created")
     if (!is.null(Theta$Cor_p) & is.null(Theta$Covar_p)) {
-        print("Cor_p provided in prior parameters")
-        print(Theta$Cor_p)
-        print("Rescaling to Covar_p")
+        # print("Cor_p provided in prior parameters")
+        # print(Theta$Cor_p)
+        # print("Rescaling to Covar_p")
 
         if ("Alpha" %in% names(Theta)) {Alpha = Theta$Alpha}
         if ("Beta" %in% names(Theta)) {Beta = Theta$Beta}
@@ -127,12 +137,29 @@ set_truncnorm_hyperprior_parameters <- function(
         sd = sqrt(var)
         # 1/6/25 Added Theta$ in front
         Theta$Covar_p = diag(sd) %*% Theta$Cor_p %*% diag(sd)
-        print("Covar_p")
-        print(Theta$Covar_p)
-
         Theta$Covar_p_inv = solve(Theta$Covar_p)
-        print("Covar_p_inv")
-        print(Theta$Covar_p_inv)
+    }
+
+    # TODO: hierarchical model. hyperprior on covar_P
+    # Ensure that all three params are specified
+    # User has to input priors on these params
+    #
+    # move this to sample truncnorm prior parameters
+    print("setting priors for hierarchical model")
+    if (!is.null(Theta$sigma2_prior) & !is.null(Theta$rho_same_prior) & !is.null(Theta$rho_diff_prior)) {
+        print(Theta$sigma2_prior[["shape"]])
+        Theta$sigma2 <- invgamma::rinvgamma(1,
+            shape = Theta$sigma2_prior[["shape"]],
+            rate = Theta$sigma2_prior[["scale"]])
+
+        # (x-1/2)* 2 for beta -1 1 scale
+        Theta$rho_same <- rbeta(1, Theta$rho_same_prior["a"], Theta$rho_same_prior["b"])
+        Theta$rho_diff <- 2 * rbeta(1, Theta$rho_diff_prior["a"], Theta$rho_diff_prior["b"]) - 1
+
+        # Construct Covar_p for K = 96 with 6 blocks of 4x4
+        Theta$Covar_p <- build_covariance_matrix_P(Theta$sigma2, Theta$rho_same, Theta$rho_diff, dims$K)
+        # Get Covar_p_inv
+        Theta$Covar_p_inv <- solve(Theta$Covar_p)
     }
 
     fill_list(Theta, list(
@@ -372,11 +399,11 @@ sample_prior_P <- function(Theta, dims, prior) {
     P <- matrix(nrow = dims$K, ncol = dims$N)
     # MVN for P
     if (prior == 'truncnormal' & !is.null(Theta$Covar_p)) {
-        print("Sampling Prior P with MVN")
-        print("Theta$Mu_p")
-        print(Theta$Mu_p)
-        print("Theta$Covar_p")
-        print(Theta$Covar_p)
+        # print("Sampling Prior P with MVN")
+        # print("Theta$Mu_p")
+        # print(Theta$Mu_p)
+        # print("Theta$Covar_p")
+        # print(Theta$Covar_p)
         saveRDS(Theta, file = "test.rds")
         for (n in 1:dims$N) {
             print(paste("n =", n))
@@ -407,11 +434,11 @@ sample_prior_P <- function(Theta, dims, prior) {
             # sample every column of Theta$P from MVN
             P[, n] <- sample
 
-            print("printing n and sample of Theta$P column")
-            print(n)
-            print(sample)
+            # print("printing n and sample of Theta$P column")
+            # print(n)
+            # print(sample)
         }
-        print("Done Sampling Prior P with MVN")
+        # print("Done Sampling Prior P with MVN")
     }
     # non MVN case for P
     else {
@@ -527,11 +554,11 @@ initialize_Theta <- function(
 
     # signatures P
     if (prior == 'truncnormal') {
-        scale_to = mean(Theta$Mu_p)
+        scale_P_to = mean(Theta$Mu_p)
     } else if (prior == 'exponential') {
-        scale_to = 1 / mean(Theta$Lambda_p)
+        scale_P_to = 1 / mean(Theta$Lambda_p)
     } else { #gamma
-        scale_to = mean(Theta$Alpha_p) / mean(Theta$Beta_p)
+        scale_P_to = mean(Theta$Alpha_p) / mean(Theta$Beta_p)
     }
 
     if (!is.null(fixed$P)) {
@@ -541,27 +568,27 @@ initialize_Theta <- function(
             dims_notfixed <- dims; dims_notfixed$N <- dims$N - ncol(fixed$P)
 
             not_fixed_P = sample_prior_P(Theta, dims_notfixed, prior)
-            scaled_fixed_P = fixed$P * scale_to / mean(fixed$P)
+            scaled_fixed_P = fixed$P * scale_P_to / mean(fixed$P)
             Theta$P <- cbind(
                 scaled_fixed_P, not_fixed_P
             )
         } else {
             is_fixed$P <- rep(TRUE, dims$N)
-            scaled_fixed_P = fixed$P * scale_to / mean(fixed$P)
+            scaled_fixed_P = fixed$P * scale_P_to / mean(fixed$P)
             Theta$P <- scaled_fixed_P
         }
     } else if (!is.null(inits$P)) {
-        print('inits$P before scaling')
-        print(inits$P)
+        # print('inits$P before scaling')
+        # print(inits$P)
+        #
+        #
+        # print('scale_P_to, mean(inits$P)')
+        # print(scale_P_to)
+        # print(mean(inits$P))
 
-
-        print('scale_to, mean(inits$P)')
-        print(scale_to)
-        print(mean(inits$P))
-
-        inits$P = inits$P * scale_to / mean(inits$P)
-        print("printing inits$P after scaling: ")
-        print(inits$P)
+        inits$P = inits$P * scale_P_to / mean(inits$P)
+        # print("printing inits$P after scaling: ")
+        # print(inits$P)
         Theta$P <- inits$P # is_fixed$P all False from initialization
     } else {
         # LOOK HERE for printing n and sample of Theta$P column
@@ -570,12 +597,22 @@ initialize_Theta <- function(
     }
 
     # exposures E
+    if (prior == 'truncnormal') {
+        scale_E_to = mean(Theta$Mu_e)
+    } else if (prior == 'exponential') {
+        scale_E_to = 1 / mean(Theta$Lambda_e)
+    } else { #gamma
+        scale_E_to = mean(Theta$Alpha_e) / mean(Theta$Beta_e)
+    }
+
     if (!is.null(fixed$E)) {
-        Theta$E <- fixed$E
         is_fixed$E <- TRUE
+        scaled_fixed_E <- fixed$E * scale_E_to / mean(fixed$E)
+        Theta$E <- scaled_fixed_E
     } else if (!is.null(inits$E)) {
-        Theta$E <- inits$E
         is_fixed$E <- FALSE
+        scaled_init_E <- inits$E * scale_E_to / mean(inits$E)
+        Theta$E <- scaled_init_E
     } else {
         Theta$E <- sample_prior_E(Theta, dims, prior)
         is_fixed$E <- FALSE
