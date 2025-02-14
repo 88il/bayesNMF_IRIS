@@ -26,8 +26,8 @@ get_Mhat <- function(Theta) {
         Mhat <- Theta$P %*% diag(Theta$A[1,]) %*% Theta$E
     }
 
-    print('printing Mhat')
-    print(Mhat)
+    # print('printing Mhat')
+    # print(Mhat)
 
     # print("HELLO P")
     # print(Theta$P)
@@ -729,6 +729,13 @@ get_credible_intervals <- function(logs, map.idx) {
     if ("sigmasq" %in% names(logs)) {
         credible_intervals[["sigmasq"]] <- get_quantile(logs$sigmasq[map.idx])
     }
+
+    if("sigma2_prior" %in% names(logs)) {
+        credible_intervals[["sigma2"]] <- get_quantile(logs$sigma2[map.idx])
+        credible_intervals[["rho_same"]] <- get_quantile(logs$rho_same[map.idx])
+        credible_intervals[["rho_diff"]] <- get_quantile(logs$rho_diff[map.idx])
+    }
+
     return(credible_intervals)
 }
 
@@ -797,3 +804,105 @@ validate_model <- function(likelihood, prior, fast) {
         }
     }
 }
+
+#' Build covariance matrix for P for hierarchical model
+#'
+#' @param sigma2 variance parameter for P
+#' @param rho_same correlation for same-center mutations in P
+#' @param rho_diff correlation for different-center mutations in P
+#' @param K number of mutation types
+#'
+#' @return covariance matrix (K x K)
+#' @noRd
+build_covariance_matrix_P <- function(sigma2, rho_same, rho_diff, K) {
+    # print('inside build_covariance_matrix_P')
+    # print(sigma2)
+    # print(rho_same)
+    # print(rho_diff)
+    # print(K)
+
+    # Number of mutation categories per center
+    num_centers <- 6
+    block_size <- K / num_centers # 16 for alphabet of length 96
+
+    # Initialize covariance matrix to diff center mutation value
+    Sigma_P <- matrix(rho_diff * sigma2, nrow = K, ncol = K)
+
+    for (b in 1:num_centers) {
+        start_idx <- (b - 1) * block_size + 1
+        end_idx <- b * block_size
+        Sigma_P[start_idx:end_idx, start_idx:end_idx] <- rho_same * sigma2
+        diag(Sigma_P[start_idx:end_idx, start_idx:end_idx]) <- sigma2
+    }
+
+    # print('before lqmm:make:positive:definite')
+    # print(Sigma_P)
+
+    # Make covar matrix pos definite
+    # Always return this version from build covar matrix ??
+    newsigma <- lqmm::make.positive.definite(Sigma_P, tol=1e-3)
+
+    # CHECK log posterior: Inf
+    # print det of newsigma to check if singular
+
+    # print('after lqmm:make:positive:definite')
+    # print(newsigma)
+
+    return(newsigma)
+}
+
+
+
+plot_unnormalized_posterior <- function(param_name, Theta, P, dims,
+                                        n_points = 200,
+                                        verbose  = FALSE) {
+    # Define range for each parameter
+    if (param_name == "sigma2") {
+        param_seq <- seq(1e-6, 5, length.out = n_points)
+        lower     <- 1e-6
+        upper     <- 100
+    } else if (param_name == "rho_same") {
+        param_seq <- seq(0, 1, length.out = n_points)
+        lower     <- 0
+        upper     <- 1
+    } else if (param_name == "rho_diff") {
+        param_seq <- seq(-1, 1, length.out = n_points)
+        lower     <- -1
+        upper     <- 1
+    } else {
+        stop("Unknown param_name: ", param_name)
+    }
+
+    # local_log_pdf uses unnormalized_posterior but resets Theta afterward
+    local_log_pdf <- function(x) {
+        # temporarily modify Theta[[param_name]]
+        old_value <- Theta[[param_name]]
+        on.exit({ Theta[[param_name]] <- old_value }, add = TRUE)
+
+        Theta[[param_name]] <- x
+        val <- unnormalized_posterior(x, param_name, P, Theta, dims)
+
+        if (!verbose) {
+            # Suppress the cat() calls inside unnormalized_posterior
+        }
+        return(val)
+    }
+
+    # Evaluate unnormalized log-posterior on a grid
+    log_vals <- sapply(param_seq, local_log_pdf)
+    # Shift log-posterior so the maximum is at 0 (for safe exponentiation)
+    log_vals_shifted <- log_vals - max(log_vals, na.rm = TRUE)
+    post_vals        <- exp(log_vals_shifted)
+
+    # Plot the result
+    plot(param_seq, post_vals, type = "l",
+         xlab = param_name, ylab = "Unnormalized Posterior",
+         main = paste("Posterior vs.", param_name))
+
+    # Plot log posterior
+    plot(param_seq, log_vals, type = "l",
+         xlab = param_name, ylab = "Log Posterior",
+         main = paste("Log Posterior vs.", param_name))
+
+}
+

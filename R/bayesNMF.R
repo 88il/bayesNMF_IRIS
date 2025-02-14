@@ -438,6 +438,7 @@ inner_bayesNMF <- function(
     )
 
     # set up Theta
+    print("initializing Theta")
     Theta <- initialize_Theta(
         M = M,
         likelihood = likelihood,
@@ -455,6 +456,8 @@ inner_bayesNMF <- function(
     Theta$prob_inclusion <- Theta$A
     Theta$P_acceptance <- Theta$P
     Theta$E_acceptance <- Theta$E
+
+    print("done initializing Theta")
 
     # set up metrics and logs
     metrics <- list(
@@ -485,6 +488,12 @@ inner_bayesNMF <- function(
         logs$Z <- list()
     }
 
+    if(!is.null(Theta$sigma2_prior)) {
+        logs$sigma2 <- list()
+        logs$rho_same <- list()
+        logs$rho_diff <- list()
+    }
+
     # initialize convergence status
     convergence_status <- list(
         prev_MAP_metric = Inf,
@@ -509,8 +518,8 @@ inner_bayesNMF <- function(
         update_A_cols = sample(update_A_cols)
     }
 
-    print("before Gibbs starts printing Theta$P")
-    print(Theta$P)
+    # print("before Gibbs starts printing Theta$P")
+    # print(Theta$P)
 
     # Gibbs sampler
     iter = 1
@@ -521,8 +530,6 @@ inner_bayesNMF <- function(
     START_ITER <- Sys.time()
     while (iter <= convergence_control$maxiters & !done) {
         print(iter)
-
-        ## LOOOOK HERE !!!!
 
         # update non-fixed columns of P
         if (length(update_P_columns) > 1) {
@@ -562,9 +569,6 @@ inner_bayesNMF <- function(
             }
         }
 
-        print("printing Theta$sigmasq")
-        print(Theta$sigmasq)
-
         # update A and n
         Theta$n <- sample_n(Theta, dims, clip, gamma = gamma_sched[iter])
         Theta$q <- update_q(Theta, dims, clip)
@@ -598,13 +602,17 @@ inner_bayesNMF <- function(
         for (n in 1:dims$N) {
             if (prior == "truncnormal") {
                 if (!Theta$is_fixed$prior_P[n]) {
+                    # Update mean and variance for P
                     Theta$Mu_p[,n] <- sample_Mu_Pn(
                         n, Theta, dims, gamma = 1
                     )
+                    # IL TODO: skip this if hierarchical ??
                     Theta$Sigmasq_p[,n] <- sample_Sigmasq_Pn(
                         n, Theta, dims, gamma = 1
                     )
                 }
+
+                # Update mean and variance for E
                 Theta$Mu_e[n,] <- sample_Mu_En(
                     n, Theta, dims, gamma = 1
                 )
@@ -642,6 +650,36 @@ inner_bayesNMF <- function(
             }
         }
 
+        # TODO:
+        # update covar_P hyperpriors (sigma^2, rho_same, rho_diff)
+        if (!is.null(Theta$sigma2_prior) & !is.null(Theta$rho_same_prior) & !is.null(Theta$rho_diff_prior)) {
+            print('before hyperparam resample: ')
+            print(Theta$sigma2)
+            print(Theta$rho_same)
+            print(Theta$rho_diff)
+
+            hyperparam_resample <- resample_hyperparameters(
+                Theta, Theta$P, dims
+            )
+            Theta$sigma2 <- hyperparam_resample$sigma2
+            Theta$rho_same <- hyperparam_resample$rho_same
+            Theta$rho_diff <- hyperparam_resample$rho_diff
+
+            print('after hyperparam resample: ')
+            print(Theta$sigma2)
+            print(Theta$rho_same)
+            print(Theta$rho_diff)
+
+            # Recompute Covar_p based on updated hyperparameters
+            Theta$Covar_p <- build_covariance_matrix_P(
+                Theta$sigma2,
+                Theta$rho_same,
+                Theta$rho_diff,
+                dims$K
+            )
+        }
+
+
         # log on original scale
         # only if storing logs or if we will use it for MAP
         if (store_logs | iter >= convergence_control$MAP_every + 1) {
@@ -658,6 +696,14 @@ inner_bayesNMF <- function(
                 # likelihood == "poisson" & !fast
                 logs$Z[[logiter]] <- Theta$Z
             }
+
+            #  IL added for hierarchical
+            if(!is.null(Theta$sigma2_prior)) {
+                logs$sigma2[[logiter]] <- Theta$sigma2
+                logs$rho_same[[logiter]] <- Theta$rho_same
+                logs$rho_diff[[logiter]] <- Theta$rho_diff
+            }
+
             logiter = logiter + 1
         }
 
@@ -798,6 +844,7 @@ inner_bayesNMF <- function(
                 credible_intervals$E[[2]] <- credible_intervals$E[[2]][res$MAP$A[1,]==1,]
 
                 res$credible_intervals <- credible_intervals
+                # IL 2/6 returns last 1000 iterations
                 posterior_samples <- list()
                 for (name in names(logs)) {
                     posterior_samples[[name]] <- logs[[name]][MAP$idx]

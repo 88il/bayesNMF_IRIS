@@ -37,19 +37,19 @@ log_target_Pn <- function(M, Pn, n, Theta, prior) {
 #' @return list of two items, mu and sigmasq
 #' @noRd
 get_mu_sigmasq_Pn <- function(n, M, Theta, prior, dims, gamma = 1) {
-    print("inside get_mu_sigmasq_Pn")
+    # print("inside get_mu_sigmasq_Pn")
     # print(Theta$P)
 
     Mhat_no_n <- get_Mhat_no_n(Theta, n)
 
-    print("printing Mhat_no_n: ")
-    print(Mhat_no_n)
-
-    print('printing P')
-    print(Theta$P)
-
-    print('printing E')
-    print(Theta$E)
+    # print("printing Mhat_no_n: ")
+    # print(Mhat_no_n)
+    #
+    # print('printing P')
+    # print(Theta$P)
+    #
+    # print('printing E')
+    # print(Theta$E)
 
     # MVN case for P
     # case when P has covariance matrix
@@ -57,8 +57,8 @@ get_mu_sigmasq_Pn <- function(n, M, Theta, prior, dims, gamma = 1) {
     if (prior == 'truncnormal' & !is.null(Theta$Covar_p)) {
         cov_p = Theta$Covar_p
 
-        print('printing cov_p')
-        print(cov_p)
+        # print('printing cov_p')
+        # print(cov_p)
 
         sigma_M <- diag(Theta$sigmasq) # KxK
 
@@ -130,6 +130,7 @@ get_mu_sigmasq_Pn <- function(n, M, Theta, prior, dims, gamma = 1) {
 
         covar_P <- A_inv
         covar_P_inv <- A # check for issues in rounding, use H precision
+
         return(list(
             mu = mu_P,
             covar = covar_P,
@@ -181,32 +182,32 @@ get_mu_sigmasq_Pn <- function(n, M, Theta, prior, dims, gamma = 1) {
 #' @noRd
 sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
     print("in sample_Pn_normal")
-    print("printing Theta$Covar_p")
-    print(Theta$Covar_p)
+    # print("printing Theta$Covar_p")
+    # print(Theta$Covar_p)
 
     # MVN case for P
-    if (prior == 'truncnormal' & !is.null(Theta$Covar_p)) {
+    if (prior == 'truncnormal' & !is.null(Theta$Covar_p) ) {
 
         # Obtain posterior mu, sigma for P
-        print("Sampling P MVN")
+        # print("Sampling P MVN")
         mu_sigmasq_P <- get_mu_sigmasq_Pn(n, M, Theta, prior, dims, gamma = gamma)
         mean_vector <- mu_sigmasq_P$mu[,1]
 
-        print('printing mu_sigmasq_P$covar:')
-        print(mu_sigmasq_P$covar)
+        # print('printing mu_sigmasq_P$covar:')
+        # print(mu_sigmasq_P$covar)
 
         # Perturb diagonal otherwise sigma is not positive definite
         epsilon <- 0 # 1e-5
         newsigma <- mu_sigmasq_P$covar + diag(epsilon, nrow(Theta$Covar_p))
 
-        print("printing newsigma")
-        print(newsigma)
+        # print("printing newsigma")
+        # print(newsigma)
 
         newsigma_inv <- mu_sigmasq_P$covar_inv
         newsigma_inv <- as.matrix(Matrix::forceSymmetric(newsigma_inv))
 
-        print('checking if covar_p_inv is PD')
-        print(matrixcalc::is.positive.definite(newsigma_inv))
+        # print('checking if covar_p_inv is PD')
+        # print(matrixcalc::is.positive.definite(newsigma_inv))
 
         eigenvalues <- eigen(newsigma_inv)$values
         # print('printing evals: ')
@@ -247,30 +248,17 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
 
         saveRDS(mean_vector, 'mean_vector.rds')
 
-        #
-        print("newsigma:")
-        # print(newsigma)
-        # saveRDS(newsigma, 'newsigma.rds') # newsigma <- readRDS('newsigma.rds')
-        #
-        # print("lower bounds:")
-        # print(lower)
-        #
-        # print("upper bounds:")
-        # print(upper)
-        #
-        # print("start value:")
-        # print(Theta$P[, n])
-        # saveRDS(Theta$P[, n], 'startval.rds')
+        # print("newsigma:")
 
         # NOTE TO IRIS: maybe also set the sample to 0 at these indices??
-        print(paste("sum(mean_vector < 0)", sum(mean_vector < 0)))
+        # print(paste("sum(mean_vector < 0)", sum(mean_vector < 0)))
         mean_vector[mean_vector < 0] <- 0
 
-        print("mean vector: ")
-        print(mean_vector)
-
-        print("newsigma_inv: ")
-        print(newsigma_inv)
+        # print("mean vector: ")
+        # print(mean_vector)
+        #
+        # print("newsigma_inv: ")
+        # print(newsigma_inv)
 
         # Set lower, upper bounds for MVNtruncnorm sampler
         lower <- rep(0, length(mean_vector))
@@ -278,9 +266,9 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
 
         lower_stricter <- pmax(lower, mean_vector - 10 * sqrt(diag(newsigma)))
         upper_stricter <- pmin(upper, mean_vector + 10 * sqrt(diag(newsigma)))
-        print('lower_stricter, upper_stricter')
-        print(lower_stricter)
-        print(upper_stricter)
+        # print('lower_stricter, upper_stricter')
+        # print(lower_stricter)
+        # print(upper_stricter)
 
         # H for solve(newsigma)
         sample <- tmvtnorm::rtmvnorm(
@@ -310,6 +298,13 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior, gamma = 1) {
         # print("Done Sampling P MVN")
         return(sample)
     }
+
+    # # TODO: hyperprior on covar P sampleP case
+    # elif( prior == 'truncnormal' & !is.null(Theta$sigma2_prior) ) {
+    #     # FILL
+    # }
+
+
     # non MVN case
     else {
         # Normal-exponential doesn't collapse like normal-truncated normal
@@ -401,8 +396,8 @@ sample_Pn <- function(n, M, Theta, dims, likelihood, prior, fast, gamma = 1) {
         acceptance <- 1
     }
 
-    print("in samplePn")
-    print(sampled)
+    # print("in samplePn")
+    # print(sampled)
 
     return(list(
         sampled = sampled,
