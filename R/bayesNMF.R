@@ -479,7 +479,11 @@ inner_bayesNMF <- function(
         E_acceptance = list(),
         A = list(),
         prob_inclusion = list(),
-        n = list()
+        n = list(),
+
+        logprior_every = list(), # IL added 4/25
+        loglik_every = list(),
+        logpost_every = list()
     )
     if (likelihood == "normal" | (likelihood == "poisson" & fast)) {
         logs$sigmasq <- list()
@@ -536,8 +540,8 @@ inner_bayesNMF <- function(
             update_P_columns = sample(update_P_columns)
         }
 
-        print('printing update_P_columns')
-        print(update_P_columns)
+        # print('printing update_P_columns')
+        # print(update_P_columns)
 
         for (n in update_P_columns) {
             sample_Pn_out <- sample_Pn(
@@ -697,12 +701,19 @@ inner_bayesNMF <- function(
                 logs$Z[[logiter]] <- Theta$Z
             }
 
-            #  IL added for hierarchical
+            # IL added for hierarchical
             if(!is.null(Theta$sigma2_prior)) {
                 logs$sigma2[[logiter]] <- Theta$sigma2
                 logs$rho_same[[logiter]] <- Theta$rho_same
                 logs$rho_diff[[logiter]] <- Theta$rho_diff
             }
+
+            # IL added 4/25 track logposterior logprior
+            logs$logprior_every[[logiter]] <- get_logprior(
+                Theta, likelihood, prior, dims
+            )
+            logs$loglik_every[[logiter]] <- get_loglik_normal(M, Theta, dims)
+            logs$logpost_every[[logiter]] <- logs$loglik_every[[logiter]] + logs$logprior_every[[logiter]]
 
             logiter = logiter + 1
         }
