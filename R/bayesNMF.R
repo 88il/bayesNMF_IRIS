@@ -540,9 +540,6 @@ inner_bayesNMF <- function(
             update_P_columns = sample(update_P_columns)
         }
 
-        # print('printing update_P_columns')
-        # print(update_P_columns)
-
         for (n in update_P_columns) {
             sample_Pn_out <- sample_Pn(
                 n, M, Theta, dims,
@@ -610,7 +607,6 @@ inner_bayesNMF <- function(
                     Theta$Mu_p[,n] <- sample_Mu_Pn(
                         n, Theta, dims, gamma = 1
                     )
-                    # IL TODO: skip this if hierarchical ??
                     Theta$Sigmasq_p[,n] <- sample_Sigmasq_Pn(
                         n, Theta, dims, gamma = 1
                     )
@@ -654,13 +650,9 @@ inner_bayesNMF <- function(
             }
         }
 
-        # TODO:
-        # update covar_P hyperpriors (sigma^2, rho_same, rho_diff)
+
+        # update covar_P hyperpriors for Hierarchical method
         if (!is.null(Theta$sigma2_prior) & !is.null(Theta$rho_same_prior) & !is.null(Theta$rho_diff_prior)) {
-            print('before hyperparam resample: ')
-            print(Theta$sigma2)
-            print(Theta$rho_same)
-            print(Theta$rho_diff)
 
             hyperparam_resample <- resample_hyperparameters(
                 Theta, Theta$P, dims
@@ -669,12 +661,7 @@ inner_bayesNMF <- function(
             Theta$rho_same <- hyperparam_resample$rho_same
             Theta$rho_diff <- hyperparam_resample$rho_diff
 
-            print('after hyperparam resample: ')
-            print(Theta$sigma2)
-            print(Theta$rho_same)
-            print(Theta$rho_diff)
-
-            # Recompute Covar_p based on updated hyperparameters
+            # recompute Covar_p based on updated hyperparameters
             Theta$Covar_p <- build_covariance_matrix_P(
                 Theta$sigma2,
                 Theta$rho_same,
@@ -701,14 +688,14 @@ inner_bayesNMF <- function(
                 logs$Z[[logiter]] <- Theta$Z
             }
 
-            # IL added for hierarchical
+            # store hierarchical parameters logs
             if(!is.null(Theta$sigma2_prior)) {
                 logs$sigma2[[logiter]] <- Theta$sigma2
                 logs$rho_same[[logiter]] <- Theta$rho_same
                 logs$rho_diff[[logiter]] <- Theta$rho_diff
             }
 
-            # IL added 4/25 track logposterior logprior
+            # track logposterior and logprior
             logs$logprior_every[[logiter]] <- get_logprior(
                 Theta, likelihood, prior, dims
             )

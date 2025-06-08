@@ -115,50 +115,34 @@ set_truncnorm_hyperprior_parameters <- function(
         Theta$Beta = rep(Theta$beta, dims$K)
     }
 
-    # NOTE TO IRIS: the covar P you put in is based on the signatures
-    # matrix where columns sum to 1. We need to rescale this to the actual
-    # scale of the prior on P. To do so, we need the input to actually be
-    # a correlation matrix (scale agnostic)
     print("checking if prior for covar_p needs to be created")
     if (!is.null(Theta$Cor_p) & is.null(Theta$Covar_p)) {
-        # print("Cor_p provided in prior parameters")
-        # print(Theta$Cor_p)
-        # print("Rescaling to Covar_p")
 
         if ("Alpha" %in% names(Theta)) {Alpha = Theta$Alpha}
         if ("Beta" %in% names(Theta)) {Beta = Theta$Beta}
 
-        # variance of each k based on inv gamma prior
-
-        # scale to variance of P
+        # scale Covar_p to variance of P, from Cor_p
         var = rep(sqrt(mean(M))/sqrt(dims$N), dims$K)
-        # Beta**2 / ((Alpha - 1)**2 * (Alpha - 2)) # length K
-
         sd = sqrt(var)
-        # 1/6/25 Added Theta$ in front
+
         Theta$Covar_p = diag(sd) %*% Theta$Cor_p %*% diag(sd)
         Theta$Covar_p_inv = solve(Theta$Covar_p)
     }
 
-    # TODO: hierarchical model. hyperprior on covar_P
-    # Ensure that all three params are specified
-    # User has to input priors on these params
-    #
-    # move this to sample truncnorm prior parameters
+    # hierarchical model setup priors
     print("setting priors for hierarchical model")
     if (!is.null(Theta$sigma2_prior) & !is.null(Theta$rho_same_prior) & !is.null(Theta$rho_diff_prior)) {
-        print(Theta$sigma2_prior[["shape"]])
+
         Theta$sigma2 <- invgamma::rinvgamma(1,
             shape = Theta$sigma2_prior[["shape"]],
             rate = Theta$sigma2_prior[["scale"]])
 
-        # (x-1/2)* 2 for beta -1 1 scale
+        # scale correlation parameters to be in [-1,1]
         Theta$rho_same <- rbeta(1, Theta$rho_same_prior["a"], Theta$rho_same_prior["b"])
         Theta$rho_diff <- 2 * rbeta(1, Theta$rho_diff_prior["a"], Theta$rho_diff_prior["b"]) - 1
 
-        # Construct Covar_p for K = 96 with 6 blocks of 4x4
+        # construct Covar_p for K = 96 with 6 blocks of 4x4
         Theta$Covar_p <- build_covariance_matrix_P(Theta$sigma2, Theta$rho_same, Theta$rho_diff, dims$K)
-        # Get Covar_p_inv
         Theta$Covar_p_inv <- solve(Theta$Covar_p)
     }
 
@@ -418,7 +402,16 @@ sample_prior_P <- function(Theta, dims, prior) {
             # newsigma <- Theta$Covar_p + diag(1e-6, nrow(Theta$Covar_p))
             # newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
 
+
+            # print("newsigma")
+            # print(Theta$Covar_p)
+
             newsigma <- as.matrix(Matrix::forceSymmetric(Theta$Covar_p))
+
+
+            # print("newsigma")
+            # print(newsigma)
+
             newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
 
             if (!all(eigen(newsigma)$values >= 0)) {
