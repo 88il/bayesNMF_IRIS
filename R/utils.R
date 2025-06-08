@@ -572,6 +572,10 @@ get_MAP <- function(logs, keep, dims, final = FALSE) {
         E_acceptance = get_mean(logs$E_acceptance[map.idx]),
         q = get_mean(logs$q[map.idx]),
         prob_inclusion = get_mean(logs$prob_inclusion[map.idx]),
+
+        # # add IL rho_same, rho_diff, sigma2 mean
+        # rho_same = mean(logs$P[map.idx])
+
         idx = map.idx,
         top_counts = A_MAP$top_counts
     )
@@ -815,12 +819,6 @@ validate_model <- function(likelihood, prior, fast) {
 #' @return covariance matrix (K x K)
 #' @noRd
 build_covariance_matrix_P <- function(sigma2, rho_same, rho_diff, K) {
-    # print('inside build_covariance_matrix_P')
-    # print(sigma2)
-    # print(rho_same)
-    # print(rho_diff)
-    # print(K)
-
     # Number of mutation categories per center
     num_centers <- 6
     block_size <- K / num_centers # 16 for alphabet of length 96
@@ -828,6 +826,7 @@ build_covariance_matrix_P <- function(sigma2, rho_same, rho_diff, K) {
     # Initialize covariance matrix to diff center mutation value
     Sigma_P <- matrix(rho_diff * sigma2, nrow = K, ncol = K)
 
+    # Populate covariance matrix
     for (b in 1:num_centers) {
         start_idx <- (b - 1) * block_size + 1
         end_idx <- b * block_size
@@ -835,74 +834,8 @@ build_covariance_matrix_P <- function(sigma2, rho_same, rho_diff, K) {
         diag(Sigma_P[start_idx:end_idx, start_idx:end_idx]) <- sigma2
     }
 
-    # print('before lqmm:make:positive:definite')
-    # print(Sigma_P)
-
     # Make covar matrix pos definite
-    # Always return this version from build covar matrix ??
     newsigma <- lqmm::make.positive.definite(Sigma_P, tol=1e-3)
-
-    # CHECK log posterior: Inf
-    # print det of newsigma to check if singular
-
-    # print('after lqmm:make:positive:definite')
-    # print(newsigma)
 
     return(newsigma)
 }
-
-
-
-plot_unnormalized_posterior <- function(param_name, Theta, P, dims,
-                                        n_points = 200,
-                                        verbose  = FALSE) {
-    # Define range for each parameter
-    if (param_name == "sigma2") {
-        param_seq <- seq(1e-6, 5, length.out = n_points)
-        lower     <- 1e-6
-        upper     <- 100
-    } else if (param_name == "rho_same") {
-        param_seq <- seq(0, 1, length.out = n_points)
-        lower     <- 0
-        upper     <- 1
-    } else if (param_name == "rho_diff") {
-        param_seq <- seq(-1, 1, length.out = n_points)
-        lower     <- -1
-        upper     <- 1
-    } else {
-        stop("Unknown param_name: ", param_name)
-    }
-
-    # local_log_pdf uses unnormalized_posterior but resets Theta afterward
-    local_log_pdf <- function(x) {
-        # temporarily modify Theta[[param_name]]
-        old_value <- Theta[[param_name]]
-        on.exit({ Theta[[param_name]] <- old_value }, add = TRUE)
-
-        Theta[[param_name]] <- x
-        val <- unnormalized_posterior(x, param_name, P, Theta, dims)
-
-        if (!verbose) {
-            # Suppress the cat() calls inside unnormalized_posterior
-        }
-        return(val)
-    }
-
-    # Evaluate unnormalized log-posterior on a grid
-    log_vals <- sapply(param_seq, local_log_pdf)
-    # Shift log-posterior so the maximum is at 0 (for safe exponentiation)
-    log_vals_shifted <- log_vals - max(log_vals, na.rm = TRUE)
-    post_vals        <- exp(log_vals_shifted)
-
-    # Plot the result
-    plot(param_seq, post_vals, type = "l",
-         xlab = param_name, ylab = "Unnormalized Posterior",
-         main = paste("Posterior vs.", param_name))
-
-    # Plot log posterior
-    plot(param_seq, log_vals, type = "l",
-         xlab = param_name, ylab = "Log Posterior",
-         main = paste("Log Posterior vs.", param_name))
-
-}
-
