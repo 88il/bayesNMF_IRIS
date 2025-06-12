@@ -182,8 +182,6 @@ sample_Alpha_Eng <- function(n, g, Theta, dims, gamma) {
 }
 
 
-# TODO: hierarchical bayesian model for Covar_P
-
 #' Compute the unnormalized posterior for a single parameter
 #'
 #' @param param current value of the parameter being resampled
@@ -194,8 +192,6 @@ sample_Alpha_Eng <- function(n, g, Theta, dims, gamma) {
 #'
 #' @return log posterior value (unnormalized)
 unnormalized_posterior <- function(param, param_name, P, Theta, dims) {
-    print('inside unnormalized_posterior')
-
     # Update the relevant parameter in Theta
     Theta[[param_name]] <- param
 
@@ -209,24 +205,15 @@ unnormalized_posterior <- function(param, param_name, P, Theta, dims) {
 
     # Log-likelihood of P (trunc MVN) under the hierarchical prior
     log_likelihood_P <- sum(sapply(1:dims$N, function(n) {
-
-        # NOT dropping normalizing constants
-        # 2/13/25 flat sigs --> maybe see  more rho_diff
-        # SBS5 is flat sig
-        # SBS1 C>T sig
         tmvtnorm::dtmvnorm(
             x = P[, n],  # nth column of P
             mean = Theta$Mu_p[, n],  # current mean for the nth signature
-            sigma = Sigma_P,  # covar_P
+            sigma = Sigma_P,
             lower = rep(0, dims$K),
             upper = rep(Inf, dims$K),
             log = TRUE  # log density
         )
     }))
-
-    print(param)
-
-
 
     # Get the prior distribution for the current parameter
     if (param_name == "sigma2") {
@@ -243,9 +230,9 @@ unnormalized_posterior <- function(param, param_name, P, Theta, dims) {
             Theta$rho_same_prior["b"],
             log = TRUE
         )
-    } else if (param_name == "rho_diff") { # f(x) = 2x - 1 => f^-1(x) = (x+1)/2
+    } else if (param_name == "rho_diff") {
         log_prior <- dbeta(
-            (param+1)/2,
+            (param+1)/2, # transform Beta distribution
             Theta$rho_diff_prior["a"],
             Theta$rho_diff_prior["b"],
             log = TRUE
@@ -254,63 +241,22 @@ unnormalized_posterior <- function(param, param_name, P, Theta, dims) {
         stop("Invalid parameter name.")
     }
 
-    print('returning from unnormalized_posterior')
-
-    print(log_likelihood_P)
-
-    print(log_prior)
-
     # Return the sum of the log-likelihood and the log-prior
     return(log_likelihood_P + log_prior)
 }
 
-
-
-#' #' Resample hyperparameters using ARMS (Adaptive Rejection Metropolis Sampling)
-#' #'
-#' #' @param Theta list of parameters
-#' #' @param P current signature matrix (K x N)
-#' #' @param dims list of dimensions
-#' #'
-#' #' @return list with updated values of sigma2, rho_same, and rho_diff
-#' resample_hyperparameters <- function(Theta, P, dims) {
-#'     # Helper function for resampling a single parameter
-#'     resample_param <- function(param_name, lower, upper) {
-#'         log_pdf <- function(x) {
-#'             if (x < lower || x > upper) return(-Inf)  # Enforce bounds
-#'             return(unnormalized_posterior(x, param_name, P, Theta, dims))
-#'         }
-#'         armspp::arms(
-#'             n_samples = 1,
-#'             log_pdf = log_pdf,
-#'             lower = lower,
-#'             upper = upper
-#'         )
-#'     }
-#'
-#'     # Resample each parameter
-#'     sigma2_new <- resample_param("sigma2", lower = 1e-6, upper = 100)
-#'     rho_same_new <- resample_param("rho_same", lower = -1, upper = 1)
-#'     rho_diff_new <- resample_param("rho_diff", lower = -1, upper = 1)
-#'
-#'     # Update Theta and return
-#'     Theta$sigma2 <- sigma2_new
-#'     Theta$rho_same <- rho_same_new
-#'     Theta$rho_diff <- rho_diff_new
-#'     return(Theta)
-#' }
-
-
-# Using MH algorithm
+# Using Metropolis-Hastings algorithm
 resample_param_rw <- function(current, log_pdf, proposal_sd, lower, upper) {
-    print('inside resample_param_rw')
-
+    # obtain proposal
     proposed <- rnorm(1, mean = current, sd = proposal_sd)
+
     if (proposed < lower || proposed > upper) {
         return(current)
     }
+
     log_p_current <- log_pdf(current) # unnormalized log posterior probability
     log_p_proposed <- log_pdf(proposed)
+
     acceptance_ratio <- exp(log_p_proposed - log_p_current)
     if (runif(1) < acceptance_ratio) {
         return(proposed)
@@ -318,10 +264,7 @@ resample_param_rw <- function(current, log_pdf, proposal_sd, lower, upper) {
     return(current)
 }
 
-
 resample_hyperparameters <- function(Theta, P, dims) {
-    print('inside resample_hyperparameters')
-
     # resampling a single parameter
     resample_param <- function(param_name, current_value, lower, upper) {
         log_pdf <- function(x) {
@@ -346,7 +289,6 @@ resample_hyperparameters <- function(Theta, P, dims) {
             cat("ARMS failed for", param_name, "- falling back to random-walk.\n")
 
             # Fallback to random-walk Metropolis-Hastings
-            # smaller sd for rho_diff
             proposal_sd_value <- if (param_name == "rho_diff") 0.1 else 0.1
             resample_param_rw(current_value, log_pdf, proposal_sd = proposal_sd_value, lower, upper)
         })
@@ -356,8 +298,6 @@ resample_hyperparameters <- function(Theta, P, dims) {
     Theta$sigma2 <- resample_param("sigma2", Theta$sigma2, lower = 1e-6, upper = 100)
     Theta$rho_same <- resample_param("rho_same", Theta$rho_same, lower = 0, upper = 1)
     Theta$rho_diff <- resample_param("rho_diff", Theta$rho_diff, lower = -1, upper = 1)
-
-    print('done resampling in resample_hyperparameters')
 
     return(Theta)
 }
